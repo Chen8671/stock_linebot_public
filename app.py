@@ -12,8 +12,8 @@ from linebot.models import ImageSendMessage, TextSendMessage
 app = Flask(__name__)
 
 # 設定 LINE Bot 的 Channel Access Token 和 Channel Secret
-line_bot_api = LineBotApi(os.getenv('CHANNEL_ACCESS_TOKEN'))  # 替換成你的 Channel Access Token
-handler = WebhookHandler(os.getenv('CHANNEL_SECRET'))         # 替換成你的 Channel Secret
+line_bot_api = LineBotApi(os.getenv('bP4+qoMkxVBTp/frpIaE4G1u4mvsPXWgyNIUJuIwdBqP8wHwZHTdEG64EYzgu0boK6ru/zS2n6ACBPp7XIUxlxSUHDrDfZmT2fQRHXhiLnonhByqaPilVH5ejhV2647pAZDg75xeH0mVIbN4Tkd6dQdB04t89/1O/w1cDnyilFU='))  # 替換成你的 Channel Access Token
+handler = WebhookHandler(os.getenv('7bf4becaf162f5e885ab92d0afa53630'))         # 替換成你的 Channel Secret
 
 # 模擬問卷類型的圖片對象（需自定義）
 class Questionnaire:
