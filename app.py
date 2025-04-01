@@ -8,15 +8,9 @@ from linebot.models import *
 
 app = Flask(__name__)
 
-# 從環境變數讀取 LINE 設定
-channel_secret = os.getenv('bP4+qoMkxVBTp/frpIaE4G1u4mvsPXWgyNIUJuIwdBqP8wHwZHTdEG64EYzgu0boK6ru/zS2n6ACBPp7XIUxlxSUHDrDfZmT2fQRHXhiLnonhByqaPilVH5ejhV2647pAZDg75xeH0mVIbN4Tkd6dQdB04t89/1O/w1cDnyilFU=', None)
-channel_access_token = os.getenv('7bf4becaf162f5e885ab92d0afa53630', None)
-if channel_secret is None:
-    print('請設定 LINE_CHANNEL_SECRET 環境變數')
-    sys.exit(1)
-if channel_access_token is None:
-    print('請設定 LINE_CHANNEL_ACCESS_TOKEN 環境變數')
-    sys.exit(1)
+# 直接硬編碼 LINE Channel 的設定資訊
+channel_secret = "bP4+qoMkxVBTp/frpIaE4G1u4mvsPXWgyNIUJuIwdBqP8wHwZHTdEG64EYzgu0boK6ru/zS2n6ACBPp7XIUxlxSUHDrDfZmT2fQRHXhiLnonhByqaPilVH5ejhV2647pAZDg75xeH0mVIbN4Tkd6dQdB04t89/1O/w1cDnyilFU="
+channel_access_token = "7bf4becaf162f5e885ab92d0afa53630"
 
 line_bot_api = LineBotApi(channel_access_token)
 handler = WebhookHandler(channel_secret)
@@ -25,7 +19,7 @@ handler = WebhookHandler(channel_secret)
 def callback():
     # 取得 X-Line-Signature 標頭內容
     signature = request.headers.get('X-Line-Signature', '')
-    # 取得 request body 並轉為純文字格式
+    # 取得 request body 並轉為純文字
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
 
@@ -40,7 +34,7 @@ def handle_message(event):
     text = event.message.text.strip()
     lower_text = text.lower()
 
-    # 當使用者輸入「menu」或「選單」時，回傳圖片選單
+    # 使用者輸入 "menu" 或 "選單" 時，回傳圖文選單
     if lower_text == 'menu' or lower_text == '選單':
         flex_message = TemplateSendMessage(
             alt_text='選單',
@@ -99,12 +93,11 @@ def handle_message(event):
         )
         line_bot_api.reply_message(event.reply_token, flex_message)
 
-    # 當使用者輸入「報價 股票代碼」或「查股 股票代碼」時，利用 yfinance 取得股票資訊
+    # 使用者輸入 "報價 股票代碼" 或 "查股 股票代碼" 時，使用 yfinance 取得股票資料
     elif lower_text.startswith('報價') or lower_text.startswith('查股'):
-        # 預期輸入格式：例如「報價 2330」或「查股 台積電」
         parts = text.split()
         if len(parts) >= 2:
-            ticker = parts[1].upper()  # 股票代碼通常使用大寫
+            ticker = parts[1].upper()  # 股票代碼通常為大寫
         else:
             line_bot_api.reply_message(
                 event.reply_token, 
@@ -130,13 +123,13 @@ def handle_message(event):
             TextSendMessage(text=reply_text)
         )
     else:
-        # 若使用者傳入其他內容，提示其使用其它指令
+        # 其他消息回覆提示訊息
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text="請輸入 'menu' 或 '選單' 來查看功能選單，或輸入 '報價 股票代碼' / '查股 股票代碼' 來查詢股票資訊。")
         )
 
 if __name__ == "__main__":
-    # Render 會以環境變數 PORT 指定埠號，若無則預設 5000
+    # Render 部署時會以環境變數 PORT 指定埠號，若無則預設 5000
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
