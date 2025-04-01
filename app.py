@@ -25,11 +25,11 @@ handler = WebhookHandler('a2180e40b0a6c2ef14fde47b59650d60')
 def get_stock_info(ticker: str) -> str:
     """
     根據股票代號取得股票資訊。
-    若輸入全為數字（例如「2330」），自動加上 .TW 後綴（變為「2330.TW」），
-    以正確取得 Yahoo Finance 上台灣股票的資料。
+
+    若輸入全為數字（例如「2330」），自動加上 .TW 後綴（變為「2330.TW」），  
+    若使用 info 資料失敗，則用股票歷史資料作備援，查詢最近兩日的收盤價格。
     """
     original = ticker.upper()
-    # 判斷是否全為數字，若是則加上 .TW
     if original.isdigit():
         ticker = original + ".TW"
     else:
@@ -38,17 +38,40 @@ def get_stock_info(ticker: str) -> str:
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
-        current_price = info.get("regularMarketPrice", "N/A")
-        previous_close = info.get("previousClose", "N/A")
-        market_cap = info.get("marketCap", "N/A")
-        return (
-            f"股票代碼：{original}\n"
-            f"現價：{current_price}\n"
-            f"前收價：{previous_close}\n"
-            f"市值：{market_cap}"
-        )
     except Exception as e:
-        return None
+        print("Exception while fetching info:", e)
+        info = {}
+
+    # 判斷是否有取得正確的行情資料；若無則嘗試 history
+    if not info or info.get("regularMarketPrice") is None:
+        try:
+            # 拉取最近兩天的歷史資料，確保能取得前後兩個交易日的數據
+            hist = stock.history(period="2d")
+            if hist.empty:
+                return None
+            current_price = hist['Close'].iloc[-1]
+            # 若有兩筆資料，取第一筆作為前收，否則就用現價代替
+            previous_close = hist['Close'].iloc[0] if len(hist) >= 2 else current_price
+            return (
+                f"股票代碼：{original}\n"
+                f"現價：{current_price}\n"
+                f"前收價：{previous_close}\n"
+                f"市值：N/A"
+            )
+        except Exception as e:
+            print("Exception while fetching history:", e)
+            return None
+
+    # 若 info 取得成功，就以其資料回覆
+    current_price = info.get("regularMarketPrice", "N/A")
+    previous_close = info.get("previousClose", "N/A")
+    market_cap = info.get("marketCap", "N/A")
+    return (
+        f"股票代碼：{original}\n"
+        f"現價：{current_price}\n"
+        f"前收價：{previous_close}\n"
+        f"市值：{market_cap}"
+    )
 
 
 @app.route("/webhook", methods=["POST"])
@@ -72,7 +95,7 @@ def webhook():
 @app.route("/")
 def index():
     """
-    根目錄路由，作為健康檢查使用
+    根目錄路由，用於健康檢查
     """
     return "Hello, this is my LINE Bot application."
 
@@ -83,7 +106,7 @@ def handle_message(event):
     lower_text = text.lower()
     parts = text.split()
 
-    # 1. 當使用者輸入 "menu" 或 "選單" 時，回覆圖文選單
+    # 1. 若使用者輸入 "menu" 或 "選單"，回覆圖文選單
     if lower_text in ("menu", "選單"):
         menu = TemplateSendMessage(
             alt_text="選單",
@@ -131,7 +154,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, menu)
         return
 
-    # 2. 當使用者輸入 "報價 股票代號" 或 "查股 股票代號" 時，回覆股票資訊
+    # 2. 若使用者輸入 "報價 股票代號" 或 "查股 股票代號" 時，回覆股票資訊
     if lower_text.startswith("報價") or lower_text.startswith("查股"):
         if len(parts) < 2:
             line_bot_api.reply_message(
@@ -151,7 +174,7 @@ def handle_message(event):
             )
         return
 
-    # 3. 若使用者直接輸入單一股票代號，則直接查詢資訊
+    # 3. 直接輸入單一股票代號，當作查詢
     if len(parts) == 1:
         info = get_stock_info(text)
         if info:
