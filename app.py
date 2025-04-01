@@ -15,7 +15,7 @@ from linebot.models import (
 
 app = Flask(__name__)
 
-# 直接硬編碼 LINE Bot 的認證資訊（生產環境建議改用環境變數管理）
+# 直接硬編碼 LINE Bot 的憑證資訊（注意：生產環境建議改用環境變數管理）
 line_bot_api = LineBotApi(
     'T/EUr80xzlGCYpOUBsuORZdWpWwl/EYMxZRgnyorALxmo0xp5ti+2ELOII85fYQZ1bf/tNbOy3Y2T3GFPKBrOGsJd1dkQ8t2Rhkh5Fc9SSq1Jn/+dTZljEyGzEdUfoL1n0LsPdKagWWHk5ZEyd8aygdB04t89/1O/w1cDnyilFU='
 )
@@ -64,7 +64,7 @@ def webhook():
 @app.route("/")
 def index():
     """
-    根目錄路由，用於健康檢查
+    根目錄路由，作為健康檢查使用
     """
     return "Hello, this is my LINE Bot application."
 
@@ -75,7 +75,7 @@ def handle_message(event):
     lower_text = text.lower()
     parts = text.split()
 
-    # 1. 當使用者輸入 "menu" 或 "選單" 時，回覆圖文選單
+    # 1. 若使用者輸入 "menu" 或 "選單"，回覆圖文選單
     if lower_text in ("menu", "選單"):
         menu = TemplateSendMessage(
             alt_text="選單",
@@ -123,7 +123,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, menu)
         return
 
-    # 2. 輸入 "報價 股票代號" 或 "查股 股票代號" 時
+    # 2. 輸入 "報價 股票代號" 或 "查股 股票代號" 時，回覆股票資訊
     if lower_text.startswith("報價") or lower_text.startswith("查股"):
         if len(parts) < 2:
             line_bot_api.reply_message(
@@ -143,7 +143,7 @@ def handle_message(event):
             )
         return
 
-    # 3. 直接輸入單一股票代號則直接查詢資訊
+    # 3. 直接輸入單一股票代號，視作查詢
     if len(parts) == 1:
         info = get_stock_info(text)
         if info:
@@ -155,7 +155,7 @@ def handle_message(event):
             )
         return
 
-    # 4. 其他輸入回覆提示訊息
+    # 4. 其他訊息則回覆提示訊息
     help_msg = (
         "請輸入 'menu' 或 '選單' 來查看功能選單，\n"
         "或輸入 '報價 股票代碼' / '查股 股票代碼' 來查詢股票資訊，\n"
