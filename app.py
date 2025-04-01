@@ -15,7 +15,7 @@ from linebot.models import (
 
 app = Flask(__name__)
 
-# 直接硬編碼 LINE Bot 的認證資訊（生產環境建議改用環境變數管理）
+# 硬編碼 LINE Bot 認證資訊（建議生產環境改用環境變數）
 line_bot_api = LineBotApi(
     'T/EUr80xzlGCYpOUBsuORZdWpWwl/EYMxZRgnyorALxmo0xp5ti+2ELOII85fYQZ1bf/tNbOy3Y2T3GFPKBrOGsJd1dkQ8t2Rhkh5Fc9SSq1Jn/+dTZljEyGzEdUfoL1n0LsPdKagWWHk5ZEyd8aygdB04t89/1O/w1cDnyilFU='
 )
@@ -25,11 +25,12 @@ handler = WebhookHandler('a2180e40b0a6c2ef14fde47b59650d60')
 def get_stock_info(ticker: str) -> str:
     """
     根據股票代號取得股票資訊。
-
-    若輸入全為數字（例如「2330」），自動加上 .TW 後綴（變為「2330.TW」），  
-    若使用 info 資料失敗，則用股票歷史資料作備援，查詢最近兩日的收盤價格。
+    
+    如果用戶輸入純數字（如 "2330"），自動加上 .TW 後綴，查詢台灣股票資料。
+    若 info 未獲得行情數據，則嘗試利用歷史資料（最近 2 天）作備援。
     """
     original = ticker.upper()
+    # 如果全部為數字則假設為台灣股票並加上 .TW 後綴
     if original.isdigit():
         ticker = original + ".TW"
     else:
@@ -42,15 +43,14 @@ def get_stock_info(ticker: str) -> str:
         print("Exception while fetching info:", e)
         info = {}
 
-    # 判斷是否有取得正確的行情資料；若無則嘗試 history
+    # 若 info 不存在或缺少正確的行情數據，嘗試使用歷史資料
     if not info or info.get("regularMarketPrice") is None:
         try:
-            # 拉取最近兩天的歷史資料，確保能取得前後兩個交易日的數據
+            # 取最近兩天的資料
             hist = stock.history(period="2d")
             if hist.empty:
                 return None
             current_price = hist['Close'].iloc[-1]
-            # 若有兩筆資料，取第一筆作為前收，否則就用現價代替
             previous_close = hist['Close'].iloc[0] if len(hist) >= 2 else current_price
             return (
                 f"股票代碼：{original}\n"
@@ -62,7 +62,7 @@ def get_stock_info(ticker: str) -> str:
             print("Exception while fetching history:", e)
             return None
 
-    # 若 info 取得成功，就以其資料回覆
+    # 正常回傳 Yahoo Finance 資料
     current_price = info.get("regularMarketPrice", "N/A")
     previous_close = info.get("previousClose", "N/A")
     market_cap = info.get("marketCap", "N/A")
@@ -95,7 +95,7 @@ def webhook():
 @app.route("/")
 def index():
     """
-    根目錄路由，用於健康檢查
+    根目錄路由，用於健康檢查，避免 404 錯誤。
     """
     return "Hello, this is my LINE Bot application."
 
@@ -106,7 +106,7 @@ def handle_message(event):
     lower_text = text.lower()
     parts = text.split()
 
-    # 1. 若使用者輸入 "menu" 或 "選單"，回覆圖文選單
+    # 若用戶輸入 "menu" 或 "選單"，回覆圖文選單（您可自行修改選單內容）
     if lower_text in ("menu", "選單"):
         menu = TemplateSendMessage(
             alt_text="選單",
@@ -154,7 +154,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, menu)
         return
 
-    # 2. 若使用者輸入 "報價 股票代號" 或 "查股 股票代號" 時，回覆股票資訊
+    # 若用戶輸入 "報價 <股票代號>" 或 "查股 <股票代號>"，進行查詢
     if lower_text.startswith("報價") or lower_text.startswith("查股"):
         if len(parts) < 2:
             line_bot_api.reply_message(
@@ -162,7 +162,6 @@ def handle_message(event):
                 TextSendMessage(text="請輸入正確格式，例如：報價 2330"),
             )
             return
-
         ticker = parts[1]
         info = get_stock_info(ticker)
         if info:
@@ -174,8 +173,8 @@ def handle_message(event):
             )
         return
 
-    # 3. 直接輸入單一股票代號，當作查詢
-    if len(parts) == 1:
+    # 若直接輸入單一股票代號（例如「2330」），也視作查詢
+    if text.isdigit():
         info = get_stock_info(text)
         if info:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=info))
@@ -186,7 +185,7 @@ def handle_message(event):
             )
         return
 
-    # 4. 其他訊息則回覆提示訊息
+    # 其他輸入回覆提示訊息
     help_msg = (
         "請輸入 'menu' 或 '選單' 來查看功能選單，\n"
         "或輸入 '報價 股票代碼' / '查股 股票代碼' 來查詢股票資訊，\n"
