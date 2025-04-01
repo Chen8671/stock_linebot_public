@@ -15,19 +15,21 @@ from linebot.models import (
 
 app = Flask(__name__)
 
-# 請確認此處的認證資訊已更新到您最新的值
+# 請確認以下憑證資訊正確，生產環境建議使用環境變數管理
 line_bot_api = LineBotApi(
-    'T/EUr80xzlGCYpOUBsuORZdWpWwl/EYMxZRgnyorALxmo0xp5ti+2ELOII85fYQZ1bf/tNbOy3Y2T3GFPKBrOGsJd1dkQ8t2Rhkh5Fc9SSq1Jn/+dTZljEyGzEdUfoL1n0LsPdKagWWHk5ZEyd8aygdB04t89/1O/w1cDnyilFU='
+    'mXE1BzBQ67nBGrZGbBO0TEWrT3xy9h3rpk4sz+PGeC00bwwc3yvWz9BEANYMNpm0MqpSk7xfmEh6l2KEy/KFEAduvGPm3m7A++Sxl3eJTiSzeQlzZJhxXfDoiyEdfGnsDern1toKbzLJdDe/IvtFpwdB04t89/1O/w1cDnyilFU='
 )
-handler = WebhookHandler('a2180e40b0a6c2ef14fde47b59650d60')
+handler = WebhookHandler('7c7b7ddfcfa323b252f5f4d81a4bff1d')
 
 
 def get_stock_info(ticker: str) -> str:
     """
     根據股票代號取得股票資訊。
     
-    如果用戶輸入純數字（例如 "2330"），則自動加上 .TW 後綴查詢台灣股票資料。
-    若 info 資料沒有取得正確行情數據，則嘗試利用最近 2 天的歷史資料作備援。
+    1. 如果用戶輸入全數字（例如 "2330"），則自動加上 .TW 後綴查詢台灣股票資料。
+    2. 優先嘗試使用 stock.fast_info（較快且較簡單）取得資料，
+       如果無法取得，再利用 stock.info，再無效則用最近 5 天的歷史資料作備援。
+    3. Debug 輸出將記錄各階段取得的資料或例外訊息，請注意 Render 日誌中的輸出。
     """
     original = ticker.upper()
     # 如果全部為數字則自動加上 .TW
@@ -39,21 +41,42 @@ def get_stock_info(ticker: str) -> str:
     print("[DEBUG] Fetching ticker:", ticker)
     try:
         stock = yf.Ticker(ticker)
+    except Exception as e:
+        print("[DEBUG] Exception creating Ticker:", e)
+        return None
+
+    # 嘗試使用 fast_info 取得資料
+    try:
+        fast_info = stock.fast_info
+        print("[DEBUG] fast_info:", fast_info)
+        current_price = fast_info.get("lastPrice", None)
+        previous_close = fast_info.get("previousClose", None)
+        market_cap = fast_info.get("marketCap", "N/A")
+        if current_price is not None and previous_close is not None:
+            return (f"股票代碼：{original}\n"
+                    f"現價：{current_price}\n"
+                    f"前收價：{previous_close}\n"
+                    f"市值：{market_cap}")
+    except Exception as e:
+        print("[DEBUG] Exception while fetching fast_info:", e)
+
+    # 若 fast_info 未取得有效資料，則嘗試使用 stock.info
+    try:
         info = stock.info
         print("[DEBUG] info returned:", info)
     except Exception as e:
         print("[DEBUG] Exception while fetching info:", e)
         info = {}
 
-    # 若 info 為空或沒有正確的行情數據，嘗試使用歷史資料
     if not info or info.get("regularMarketPrice") is None:
+        # 若 info 無法取得正確行情數據，嘗試使用最近 5 天的歷史資料
         try:
-            hist = stock.history(period="2d")
+            hist = stock.history(period="5d")
             print("[DEBUG] history data:", hist)
-            if hist.empty:
+            if hist.empty or len(hist) < 2:
                 return None
             current_price = hist['Close'].iloc[-1]
-            previous_close = hist['Close'].iloc[0] if len(hist) >= 2 else current_price
+            previous_close = hist['Close'].iloc[-2]
             return (
                 f"股票代碼：{original}\n"
                 f"現價：{current_price}\n"
@@ -96,7 +119,7 @@ def webhook():
 @app.route("/")
 def index():
     """
-    根目錄路由，用於健康檢查，避免 404
+    根目錄路由，用於健康檢查，避免 404。
     """
     return "Hello, this is my LINE Bot application."
 
@@ -107,7 +130,7 @@ def handle_message(event):
     lower_text = text.lower()
     parts = text.split()
 
-    # 如果用戶輸入 "menu" 或 "選單"，則回覆圖文選單（可自行修改內容）
+    # 1. 如果用戶輸入 "menu" 或 "選單"，回覆圖文選單
     if lower_text in ("menu", "選單"):
         menu = TemplateSendMessage(
             alt_text="選單",
@@ -155,7 +178,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, menu)
         return
 
-    # 如果用戶輸入 "報價 <股票代號>" 或 "查股 <股票代號>"，則進行查詢
+    # 2. 如果用戶輸入 "報價 <股票代號>" 或 "查股 <股票代號>" 則進行查詢
     if lower_text.startswith("報價") or lower_text.startswith("查股"):
         if len(parts) < 2:
             line_bot_api.reply_message(
@@ -174,7 +197,7 @@ def handle_message(event):
             )
         return
 
-    # 如果用戶直接輸入純數字（如 "2330"），也視作查詢
+    # 3. 如果用戶直接輸入單一股票代號（如 "2330"），則也視作查詢
     if text.isdigit():
         info = get_stock_info(text)
         if info:
@@ -186,7 +209,7 @@ def handle_message(event):
             )
         return
 
-    # 其他輸入回覆提示訊息
+    # 4. 其他輸入回覆提示訊息
     help_msg = (
         "請輸入 'menu' 或 '選單' 來查看功能選單，\n"
         "或輸入 '報價 股票代碼' / '查股 股票代碼' 來查詢股票資訊，\n"
