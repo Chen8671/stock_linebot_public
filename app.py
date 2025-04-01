@@ -17,9 +17,9 @@ app = Flask(__name__)
 
 # 請確認以下憑證資訊正確，生產環境建議使用環境變數管理
 line_bot_api = LineBotApi(
-    'mXE1BzBQ67nBGrZGbBO0TEWrT3xy9h3rpk4sz+PGeC00bwwc3yvWz9BEANYMNpm0MqpSk7xfmEh6l2KEy/KFEAduvGPm3m7A++Sxl3eJTiSzeQlzZJhxXfDoiyEdfGnsDern1toKbzLJdDe/IvtFpwdB04t89/1O/w1cDnyilFU='
+    'T/EUr80xzlGCYpOUBsuORZdWpWwl/EYMxZRgnyorALxmo0xp5ti+2ELOII85fYQZ1bf/tNbOy3Y2T3GFPKBrOGsJd1dkQ8t2Rhkh5Fc9SSq1Jn/+dTZljEyGzEdUfoL1n0LsPdKagWWHk5ZEyd8aygdB04t89/1O/w1cDnyilFU='
 )
-handler = WebhookHandler('7c7b7ddfcfa323b252f5f4d81a4bff1d')
+handler = WebhookHandler('a2180e40b0a6c2ef14fde47b59650d60')
 
 
 def get_stock_info(ticker: str) -> str:
