@@ -9,8 +9,8 @@ from linebot.models import *
 app = Flask(__name__)
 
 # 從環境變數讀取 LINE 設定
-channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
-channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
+channel_secret = os.getenv('bP4+qoMkxVBTp/frpIaE4G1u4mvsPXWgyNIUJuIwdBqP8wHwZHTdEG64EYzgu0boK6ru/zS2n6ACBPp7XIUxlxSUHDrDfZmT2fQRHXhiLnonhByqaPilVH5ejhV2647pAZDg75xeH0mVIbN4Tkd6dQdB04t89/1O/w1cDnyilFU=', None)
+channel_access_token = os.getenv('7bf4becaf162f5e885ab92d0afa53630', None)
 if channel_secret is None:
     print('請設定 LINE_CHANNEL_SECRET 環境變數')
     sys.exit(1)
