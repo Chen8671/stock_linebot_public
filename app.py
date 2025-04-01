@@ -15,7 +15,7 @@ from linebot.models import (
 
 app = Flask(__name__)
 
-# 硬編碼 LINE Bot 認證資訊（建議生產環境改用環境變數）
+# 請確認此處的認證資訊已更新到您最新的值
 line_bot_api = LineBotApi(
     'T/EUr80xzlGCYpOUBsuORZdWpWwl/EYMxZRgnyorALxmo0xp5ti+2ELOII85fYQZ1bf/tNbOy3Y2T3GFPKBrOGsJd1dkQ8t2Rhkh5Fc9SSq1Jn/+dTZljEyGzEdUfoL1n0LsPdKagWWHk5ZEyd8aygdB04t89/1O/w1cDnyilFU='
 )
@@ -26,28 +26,30 @@ def get_stock_info(ticker: str) -> str:
     """
     根據股票代號取得股票資訊。
     
-    如果用戶輸入純數字（如 "2330"），自動加上 .TW 後綴，查詢台灣股票資料。
-    若 info 未獲得行情數據，則嘗試利用歷史資料（最近 2 天）作備援。
+    如果用戶輸入純數字（例如 "2330"），則自動加上 .TW 後綴查詢台灣股票資料。
+    若 info 資料沒有取得正確行情數據，則嘗試利用最近 2 天的歷史資料作備援。
     """
     original = ticker.upper()
-    # 如果全部為數字則假設為台灣股票並加上 .TW 後綴
+    # 如果全部為數字則自動加上 .TW
     if original.isdigit():
         ticker = original + ".TW"
     else:
         ticker = original
 
+    print("[DEBUG] Fetching ticker:", ticker)
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
+        print("[DEBUG] info returned:", info)
     except Exception as e:
-        print("Exception while fetching info:", e)
+        print("[DEBUG] Exception while fetching info:", e)
         info = {}
 
-    # 若 info 不存在或缺少正確的行情數據，嘗試使用歷史資料
+    # 若 info 為空或沒有正確的行情數據，嘗試使用歷史資料
     if not info or info.get("regularMarketPrice") is None:
         try:
-            # 取最近兩天的資料
             hist = stock.history(period="2d")
+            print("[DEBUG] history data:", hist)
             if hist.empty:
                 return None
             current_price = hist['Close'].iloc[-1]
@@ -59,10 +61,9 @@ def get_stock_info(ticker: str) -> str:
                 f"市值：N/A"
             )
         except Exception as e:
-            print("Exception while fetching history:", e)
+            print("[DEBUG] Exception while fetching history:", e)
             return None
 
-    # 正常回傳 Yahoo Finance 資料
     current_price = info.get("regularMarketPrice", "N/A")
     previous_close = info.get("previousClose", "N/A")
     market_cap = info.get("marketCap", "N/A")
@@ -87,7 +88,7 @@ def webhook():
     except InvalidSignatureError:
         abort(400)
     except Exception as e:
-        print("Handler error:", e)
+        print("[DEBUG] Handler error:", e)
         abort(500)
     return "OK"
 
@@ -95,7 +96,7 @@ def webhook():
 @app.route("/")
 def index():
     """
-    根目錄路由，用於健康檢查，避免 404 錯誤。
+    根目錄路由，用於健康檢查，避免 404
     """
     return "Hello, this is my LINE Bot application."
 
@@ -106,7 +107,7 @@ def handle_message(event):
     lower_text = text.lower()
     parts = text.split()
 
-    # 若用戶輸入 "menu" 或 "選單"，回覆圖文選單（您可自行修改選單內容）
+    # 如果用戶輸入 "menu" 或 "選單"，則回覆圖文選單（可自行修改內容）
     if lower_text in ("menu", "選單"):
         menu = TemplateSendMessage(
             alt_text="選單",
@@ -154,7 +155,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, menu)
         return
 
-    # 若用戶輸入 "報價 <股票代號>" 或 "查股 <股票代號>"，進行查詢
+    # 如果用戶輸入 "報價 <股票代號>" 或 "查股 <股票代號>"，則進行查詢
     if lower_text.startswith("報價") or lower_text.startswith("查股"):
         if len(parts) < 2:
             line_bot_api.reply_message(
@@ -173,7 +174,7 @@ def handle_message(event):
             )
         return
 
-    # 若直接輸入單一股票代號（例如「2330」），也視作查詢
+    # 如果用戶直接輸入純數字（如 "2330"），也視作查詢
     if text.isdigit():
         info = get_stock_info(text)
         if info:
