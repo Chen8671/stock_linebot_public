@@ -1,5 +1,6 @@
 import os
 import sys
+import yfinance as yf
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -24,23 +25,23 @@ handler = WebhookHandler(channel_secret)
 def callback():
     # 取得 X-Line-Signature 標頭內容
     signature = request.headers.get('X-Line-Signature', '')
-    # 取得 request body 並轉為文字
+    # 取得 request body 並轉為純文字格式
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
 
-    # 處理 webhook 傳來的訊息
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
     return 'OK'
 
-# 以下是一個示範：收到文字訊息時回覆圖文選單
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    text = event.message.text.strip().lower()
-    if text == 'menu' or text == '選單':
-        # 使用 CarouselTemplate 建立多區塊的圖文選單
+    text = event.message.text.strip()
+    lower_text = text.lower()
+
+    # 當使用者輸入「menu」或「選單」時，回傳圖片選單
+    if lower_text == 'menu' or lower_text == '選單':
         flex_message = TemplateSendMessage(
             alt_text='選單',
             template=CarouselTemplate(
@@ -97,14 +98,45 @@ def handle_message(event):
             )
         )
         line_bot_api.reply_message(event.reply_token, flex_message)
-    else:
-        # 若不符合觸發條件，回覆預設訊息
+
+    # 當使用者輸入「報價 股票代碼」或「查股 股票代碼」時，利用 yfinance 取得股票資訊
+    elif lower_text.startswith('報價') or lower_text.startswith('查股'):
+        # 預期輸入格式：例如「報價 2330」或「查股 台積電」
+        parts = text.split()
+        if len(parts) >= 2:
+            ticker = parts[1].upper()  # 股票代碼通常使用大寫
+        else:
+            line_bot_api.reply_message(
+                event.reply_token, 
+                TextSendMessage(text="請輸入正確格式，例如：報價 2330")
+            )
+            return
+        try:
+            stock = yf.Ticker(ticker)
+            stock_info = stock.info
+            current_price = stock_info.get('regularMarketPrice', 'N/A')
+            previous_close = stock_info.get('previousClose', 'N/A')
+            market_cap = stock_info.get('marketCap', 'N/A')
+            reply_text = (
+                f"股票代碼: {ticker}\n"
+                f"現價: {current_price}\n"
+                f"前收價: {previous_close}\n"
+                f"市值: {market_cap}"
+            )
+        except Exception as e:
+            reply_text = f"無法取得 {ticker} 的資料，請確認代碼是否正確。"
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="請輸入 'menu' 或 '選單' 來查看功能選單。")
+            TextSendMessage(text=reply_text)
+        )
+    else:
+        # 若使用者傳入其他內容，提示其使用其它指令
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="請輸入 'menu' 或 '選單' 來查看功能選單，或輸入 '報價 股票代碼' / '查股 股票代碼' 來查詢股票資訊。")
         )
 
 if __name__ == "__main__":
-    # Render 會動態設定 PORT，預設 5000 當作備用
+    # Render 會以環境變數 PORT 指定埠號，若無則預設 5000
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
