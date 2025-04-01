@@ -15,7 +15,7 @@ from linebot.models import (
 
 app = Flask(__name__)
 
-# 直接硬編碼 LINE Bot 的認證資訊
+# 直接硬編碼 LINE Bot 的認證資訊（生產環境建議改用環境變數管理）
 line_bot_api = LineBotApi(
     'T/EUr80xzlGCYpOUBsuORZdWpWwl/EYMxZRgnyorALxmo0xp5ti+2ELOII85fYQZ1bf/tNbOy3Y2T3GFPKBrOGsJd1dkQ8t2Rhkh5Fc9SSq1Jn/+dTZljEyGzEdUfoL1n0LsPdKagWWHk5ZEyd8aygdB04t89/1O/w1cDnyilFU='
 )
@@ -43,9 +43,11 @@ def get_stock_info(ticker: str) -> str:
         return None
 
 
-@app.route("/callback", methods=["POST"])
-def callback():
-    # 取得 LINE 傳入的簽名與 request body
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    """
+    LINE Webhook 接收端點，設定為 /webhook
+    """
     signature = request.headers.get("X-Line-Signature", "")
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
@@ -59,13 +61,21 @@ def callback():
     return "OK"
 
 
+@app.route("/")
+def index():
+    """
+    根目錄路由，用於健康檢查
+    """
+    return "Hello, this is my LINE Bot application."
+
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text.strip()
     lower_text = text.lower()
     parts = text.split()
 
-    # 1. 輸入 "menu" 或 "選單" 時，回覆圖文選單
+    # 1. 當使用者輸入 "menu" 或 "選單" 時，回覆圖文選單
     if lower_text in ("menu", "選單"):
         menu = TemplateSendMessage(
             alt_text="選單",
@@ -75,49 +85,37 @@ def handle_message(event):
                         thumbnail_image_url="https://example.com/stock.png",
                         title="股票 Stock",
                         text="查看股票價格",
-                        actions=[
-                            URIAction(label="查看", uri="https://yourwebsite.com/stock")
-                        ],
+                        actions=[URIAction(label="查看", uri="https://yourwebsite.com/stock")],
                     ),
                     CarouselColumn(
                         thumbnail_image_url="https://example.com/finance-tips.png",
                         title="理財技巧 Finance tips",
                         text="獲取理財建議",
-                        actions=[
-                            URIAction(label="獲取", uri="https://yourwebsite.com/finance-tips")
-                        ],
+                        actions=[URIAction(label="獲取", uri="https://yourwebsite.com/finance-tips")],
                     ),
                     CarouselColumn(
                         thumbnail_image_url="https://example.com/rate-inquiry.png",
                         title="匯率查詢 Rate inquiry",
                         text="查詢今日匯率",
-                        actions=[
-                            URIAction(label="查詢", uri="https://yourwebsite.com/rate-inquiry")
-                        ],
+                        actions=[URIAction(label="查詢", uri="https://yourwebsite.com/rate-inquiry")],
                     ),
                     CarouselColumn(
                         thumbnail_image_url="https://example.com/stock-checkup.png",
                         title="股票健康檢查 Stock checkup",
                         text="查看股票健康狀況",
-                        actions=[
-                            URIAction(label="檢查", uri="https://yourwebsite.com/stock-checkup")
-                        ],
+                        actions=[URIAction(label="檢查", uri="https://yourwebsite.com/stock-checkup")],
                     ),
                     CarouselColumn(
                         thumbnail_image_url="https://example.com/video.png",
                         title="影片 Video",
                         text="觀看金融相關影片",
-                        actions=[
-                            URIAction(label="觀看", uri="https://yourwebsite.com/video")
-                        ],
+                        actions=[URIAction(label="觀看", uri="https://yourwebsite.com/video")],
                     ),
                     CarouselColumn(
                         thumbnail_image_url="https://example.com/finance-website.png",
                         title="理財網站 Finance website",
                         text="訪問理財網站",
-                        actions=[
-                            URIAction(label="訪問", uri="https://yourwebsite.com/finance-website")
-                        ],
+                        actions=[URIAction(label="訪問", uri="https://yourwebsite.com/finance-website")],
                     ),
                 ]
             ),
@@ -125,7 +123,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, menu)
         return
 
-    # 2. 輸入格式為 "報價 股票代號" 或 "查股 股票代號"
+    # 2. 輸入 "報價 股票代號" 或 "查股 股票代號" 時
     if lower_text.startswith("報價") or lower_text.startswith("查股"):
         if len(parts) < 2:
             line_bot_api.reply_message(
@@ -157,7 +155,7 @@ def handle_message(event):
             )
         return
 
-    # 4. 其他輸入則回覆提示訊息
+    # 4. 其他輸入回覆提示訊息
     help_msg = (
         "請輸入 'menu' 或 '選單' 來查看功能選單，\n"
         "或輸入 '報價 股票代碼' / '查股 股票代碼' 來查詢股票資訊，\n"
