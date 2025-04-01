@@ -15,7 +15,7 @@ from linebot.models import (
 
 app = Flask(__name__)
 
-# 直接硬編碼 LINE Bot 的憑證資訊（注意：生產環境建議改用環境變數管理）
+# 直接硬編碼 LINE Bot 的認證資訊（生產環境建議改用環境變數管理）
 line_bot_api = LineBotApi(
     'T/EUr80xzlGCYpOUBsuORZdWpWwl/EYMxZRgnyorALxmo0xp5ti+2ELOII85fYQZ1bf/tNbOy3Y2T3GFPKBrOGsJd1dkQ8t2Rhkh5Fc9SSq1Jn/+dTZljEyGzEdUfoL1n0LsPdKagWWHk5ZEyd8aygdB04t89/1O/w1cDnyilFU='
 )
@@ -24,9 +24,17 @@ handler = WebhookHandler('a2180e40b0a6c2ef14fde47b59650d60')
 
 def get_stock_info(ticker: str) -> str:
     """
-    根據股票代號取得股票資訊，並組成回覆內容。
+    根據股票代號取得股票資訊。
+    若輸入全為數字（例如「2330」），自動加上 .TW 後綴（變為「2330.TW」），
+    以正確取得 Yahoo Finance 上台灣股票的資料。
     """
-    ticker = ticker.upper()
+    original = ticker.upper()
+    # 判斷是否全為數字，若是則加上 .TW
+    if original.isdigit():
+        ticker = original + ".TW"
+    else:
+        ticker = original
+
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
@@ -34,7 +42,7 @@ def get_stock_info(ticker: str) -> str:
         previous_close = info.get("previousClose", "N/A")
         market_cap = info.get("marketCap", "N/A")
         return (
-            f"股票代碼：{ticker}\n"
+            f"股票代碼：{original}\n"
             f"現價：{current_price}\n"
             f"前收價：{previous_close}\n"
             f"市值：{market_cap}"
@@ -75,7 +83,7 @@ def handle_message(event):
     lower_text = text.lower()
     parts = text.split()
 
-    # 1. 若使用者輸入 "menu" 或 "選單"，回覆圖文選單
+    # 1. 當使用者輸入 "menu" 或 "選單" 時，回覆圖文選單
     if lower_text in ("menu", "選單"):
         menu = TemplateSendMessage(
             alt_text="選單",
@@ -123,7 +131,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, menu)
         return
 
-    # 2. 輸入 "報價 股票代號" 或 "查股 股票代號" 時，回覆股票資訊
+    # 2. 當使用者輸入 "報價 股票代號" 或 "查股 股票代號" 時，回覆股票資訊
     if lower_text.startswith("報價") or lower_text.startswith("查股"):
         if len(parts) < 2:
             line_bot_api.reply_message(
@@ -143,7 +151,7 @@ def handle_message(event):
             )
         return
 
-    # 3. 直接輸入單一股票代號，視作查詢
+    # 3. 若使用者直接輸入單一股票代號，則直接查詢資訊
     if len(parts) == 1:
         info = get_stock_info(text)
         if info:
